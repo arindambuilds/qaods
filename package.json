@@ -1,4 +1,13 @@
 {
+  "name": "qaods-root",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev --prefix qaods",
+    "build": "npm run build --prefix qaods",
+    "start": "npm run start --prefix qaods",
+    "lint": "npm run lint --prefix qaods",
+    "install:app": "npm install --prefix qaods"
+  },
   "dependencies": {
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

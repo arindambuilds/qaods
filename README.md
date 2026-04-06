@@ -74,27 +74,49 @@ Q-AODS solves this by running every task through a formal finite state machine t
 ### Prerequisites
 
 - **Node.js** 18 or later
-- **npm** 9+ (or pnpm / yarn)
+- **npm** 9+
+
+### Repo structure
+
+```
+qaods/           ← Next.js app (next.config.ts, package.json, app/ router)
+  app/qaods/     ← serves the /qaods route
+  node_modules/  ← install here
+src/             ← TypeScript source (lib, components, app) used by the Next.js app
+```
+
+The runnable Next.js application lives in the `qaods/` subdirectory. All `npm` commands must be run from **inside `qaods/`**, not the repo root.
 
 ### Setup
 
 ```bash
 # 1. Clone the repository
 git clone https://github.com/arindambuilds/qaods.git
-cd qaods
 
-# 2. Install dependencies
-# The runnable Next.js app lives in the qaods/ subdirectory
-cd qaods
+# 2. Enter the Next.js app directory
+cd qaods/qaods
+
+# 3. Install dependencies
 npm install
 
-# 3. Start the dev server
+# 4. Start the dev server
 npm run dev
 ```
 
-Open [http://localhost:3000/qaods](http://localhost:3000/qaods) in your browser.
+The terminal will print:
 
-> **Note on repo structure:** The root of this repository contains the TypeScript source (`src/`) and spec files (`.kiro/`). The runnable Next.js application is in the `qaods/` subdirectory, which references the root `src/` via `externalDir: true` in `next.config.ts`. All `npm` commands should be run from inside `qaods/`.
+```
+▲ Next.js 16.x.x
+- Local: http://localhost:3000
+```
+
+Open **[http://localhost:3000/qaods](http://localhost:3000/qaods)** in your browser.
+
+> **Troubleshooting — "localhost refused to connect":**
+> - Make sure you ran `npm install` and `npm run dev` from inside the `qaods/qaods/` directory, not the repo root.
+> - The repo root `package.json` has no Next.js — running `npm run dev` there will do nothing.
+> - If port 3000 is already in use, Next.js will automatically try 3001, 3002, etc. Check the terminal output for the actual URL.
+> - To stop a previous server: `Ctrl+C` in the terminal running it, or `npx kill-port 3000`.
 
 ---
 
