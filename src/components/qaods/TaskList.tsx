@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { memo } from 'react'
 import { Task, TaskPriority, TaskStatus } from '../../lib/qaods/types'
 import StatusBadge from './StatusBadge'
 
@@ -105,4 +105,4 @@ function TaskList({
   )
 }
 
-export default TaskList
+export default memo(TaskList)

@@ -75,8 +75,20 @@ web_modules/
 .parcel-cache
 
 # Next.js build output
-.next
-out
+.next/
+out/
+qaods/.next/
+qaods/out/
+
+# Turbopack / Turbo
+.turbo/
+
+# Vercel
+.vercel
+
+# TypeScript next-env
+next-env.d.ts
+qaods/next-env.d.ts
 
 # Nuxt.js build / generate output
 .nuxt
@@ -137,3 +149,13 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Kiro internal (spec runner state — not source)
+.kiro/specs/**/.config.kiro

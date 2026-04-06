@@ -5,7 +5,7 @@ interface AuditLogViewerProps {
   entries: AuditEntry[]
 }
 
-export default function AuditLogViewer({ entries }: AuditLogViewerProps) {
+export default React.memo(function AuditLogViewer({ entries }: AuditLogViewerProps) {
   if (entries.length === 0) {
     return (
       <div className="text-xs text-gray-700 font-mono p-2">
@@ -28,11 +28,13 @@ export default function AuditLogViewer({ entries }: AuditLogViewerProps) {
             })}
           </span>
           <span className="text-xs text-blue-500 font-mono shrink-0">
-            {entry.action}
+            {entry.eventType}
           </span>
-          <span className="text-xs text-gray-600 truncate">{entry.note}</span>
+          <span className="text-xs text-gray-600 truncate font-mono">
+            {JSON.stringify(entry.payload)}
+          </span>
         </div>
       ))}
     </div>
   )
-}
+})

@@ -1,7 +1,7 @@
 import { Task } from './types'
 
 /** Max iterations per task (shared by UI, activation rules, and iterate control). */
-export const MAX_TASK_ITERATIONS = 5
+export const MAX_TASK_ITERATIONS = 2
 
 export function validateTaskActivation(task: Task): { valid: boolean; reason?: string } {
   if (task.status !== 'todo') {

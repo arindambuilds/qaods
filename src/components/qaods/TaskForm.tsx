@@ -11,9 +11,10 @@ export interface TaskFormSubmitData {
 
 interface TaskFormProps {
   onSubmit: (data: TaskFormSubmitData) => void
+  isSubmitting?: boolean
 }
 
-export default function TaskForm({ onSubmit }: TaskFormProps) {
+export default function TaskForm({ onSubmit, isSubmitting = false }: TaskFormProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [component, setComponent] = useState('')
@@ -21,10 +22,10 @@ export default function TaskForm({ onSubmit }: TaskFormProps) {
   const [tags, setTags] = useState('')
 
   const inputClass =
-    'w-full bg-gray-900 border border-gray-800 text-xs text-slate-300 rounded px-3 py-2 focus:outline-none focus:border-blue-800 placeholder:text-gray-700'
+    `w-full bg-gray-900 border border-gray-800 text-xs text-slate-300 rounded px-3 py-2 focus:outline-none focus:border-blue-800 placeholder:text-gray-700 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`
 
   const handleSubmit = () => {
-    if (!title.trim()) return
+    if (!title.trim() || isSubmitting) return
 
     onSubmit({
       title: title.trim(),
@@ -49,6 +50,7 @@ export default function TaskForm({ onSubmit }: TaskFormProps) {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Task title"
+          disabled={isSubmitting}
           className={inputClass}
         />
       </label>
@@ -60,6 +62,7 @@ export default function TaskForm({ onSubmit }: TaskFormProps) {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="What needs to happen…"
+          disabled={isSubmitting}
           className={inputClass}
         />
       </label>
@@ -70,6 +73,7 @@ export default function TaskForm({ onSubmit }: TaskFormProps) {
           value={component}
           onChange={(e) => setComponent(e.target.value)}
           placeholder="AuthModule"
+          disabled={isSubmitting}
           className={inputClass}
         />
       </label>
@@ -79,6 +83,7 @@ export default function TaskForm({ onSubmit }: TaskFormProps) {
         <select
           value={priority}
           onChange={(e) => setPriority(e.target.value as TaskPriority)}
+          disabled={isSubmitting}
           className={`${inputClass} cursor-pointer`}
         >
           <option value="low">low</option>
@@ -93,6 +98,7 @@ export default function TaskForm({ onSubmit }: TaskFormProps) {
           value={tags}
           onChange={(e) => setTags(e.target.value)}
           placeholder="auth, api, bugfix"
+          disabled={isSubmitting}
           className={inputClass}
         />
       </label>
@@ -100,9 +106,10 @@ export default function TaskForm({ onSubmit }: TaskFormProps) {
       <button
         type="button"
         onClick={handleSubmit}
-        className="w-full bg-blue-900 hover:bg-blue-800 text-blue-200 text-xs font-medium py-2 rounded mt-1 transition-colors"
+        disabled={isSubmitting}
+        className={`w-full bg-blue-900 text-blue-200 text-xs font-medium py-2 rounded mt-1 transition-colors ${isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-800'}`}
       >
-        Create Task
+        {isSubmitting ? 'Submitting…' : 'Create Task'}
       </button>
     </div>
   )

@@ -1,22 +1,37 @@
-import { AuditEntry } from './types'
+import type { AuditEntry, AuditEventType } from './types'
 
-const auditLog: AuditEntry[] = []
+export interface AuditLogger {
+  append(entry: Omit<AuditEntry, 'id' | 'timestamp'>): void
+  getAll(): readonly AuditEntry[]
+  getByTaskId(taskId: string): readonly AuditEntry[]
+}
 
-export function logAction(taskId: string, action: string, note?: string): void {
-  const entry: AuditEntry = {
-    id: Date.now().toString() + Math.random().toString(36).slice(2, 7),
-    taskId,
-    action,
-    timestamp: new Date().toISOString(),
-    note: note ?? '',
+class LocalStorageAuditLogger implements AuditLogger {
+  private entries: AuditEntry[] = []
+
+  append(entry: Omit<AuditEntry, 'id' | 'timestamp'>): void {
+    const full: AuditEntry = {
+      ...entry,
+      id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2),
+      timestamp: new Date().toISOString(),
+    }
+    this.entries.push(full)
+
+    if (typeof window !== 'undefined') {
+      const key = `qaods:audit:${entry.taskId}`
+      const existing = JSON.parse(localStorage.getItem(key) ?? '[]') as AuditEntry[]
+      existing.push(full)
+      localStorage.setItem(key, JSON.stringify(existing))
+    }
   }
-  auditLog.push(entry)
+
+  getAll(): readonly AuditEntry[] {
+    return this.entries
+  }
+
+  getByTaskId(taskId: string): readonly AuditEntry[] {
+    return this.entries.filter(e => e.taskId === taskId)
+  }
 }
 
-export function getAuditLog(): AuditEntry[] {
-  return auditLog
-}
-
-export function getLogByTaskId(taskId: string): AuditEntry[] {
-  return auditLog.filter(entry => entry.taskId === taskId)
-}
+export const auditLogger: AuditLogger = new LocalStorageAuditLogger()

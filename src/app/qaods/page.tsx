@@ -1,18 +1,22 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { Task, AuditEntry, TaskPriority, TaskStatus } from '../../lib/qaods/types'
-import { getTasks, createTask, updateTask } from '../../lib/qaods/taskStore'
-import { generatePrompt } from '../../lib/qaods/promptGenerator'
-import { logAction, getAuditLog } from '../../lib/qaods/auditLogger'
-import { MAX_TASK_ITERATIONS } from '../../lib/qaods/executionController'
-import { saveTasks, loadTasks, saveAudit, loadAudit } from '../../lib/qaods/persistence'
-import TaskList from '../../components/qaods/task-list'
-import TaskForm, { TaskFormSubmitData } from '../../components/qaods/task-form'
-import TaskDetail, { TaskIterateHandler, TaskUpdateData } from '../../components/qaods/TaskDetail'
+import React, { useState, useEffect, useCallback } from 'react'
+import { useMachine } from '@xstate/react'
+import { Task, TaskStatus, TaskPriority, AuditEntry } from '../../lib/qaods/types'
+import { qaodsMachine } from '../../lib/qaods/machine'
+import { persistenceAdapter } from '../../lib/qaods/persistence'
+import { auditLogger } from '../../lib/qaods/auditLogger'
+import { createTask, updateTask, getTasks } from '../../lib/qaods/taskStore'
+import { QAODSErrorBoundary } from '../../components/qaods/QAODSErrorBoundary'
+import TaskList from '../../components/qaods/TaskList'
+import TaskForm, { TaskFormSubmitData } from '../../components/qaods/TaskForm'
+import TaskDetail, { TaskUpdateData } from '../../components/qaods/TaskDetail'
 import PromptPanel from '../../components/qaods/PromptPanel'
 import AuditLogViewer from '../../components/qaods/AuditLogViewer'
 import ExpertButton from '../../components/qaods/ExpertButton'
+import FSMInspector from '../../components/qaods/debug/FSMInspector'
+
+const USER_ID = 'default'
 
 function defaultFilePathForComponent(component: string): string {
   const comp = component.trim() || 'Module'
@@ -20,22 +24,60 @@ function defaultFilePathForComponent(component: string): string {
   return `src/components/${slug}.tsx`
 }
 
-function statusAuditLabel(status: TaskStatus): string {
-  return status === 'active' ? 'in-progress' : status
-}
-
-export default function QAODSPage() {
+function QAODSPageInner() {
+  const [state, send] = useMachine(qaodsMachine)
   const [tasks, setTasks] = useState<Task[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [auditLog, setAuditLog] = useState<AuditEntry[]>([])
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([])
   const [showForm, setShowForm] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus>('all')
   const [priorityFilter, setPriorityFilter] = useState<'all' | TaskPriority>('all')
 
+  const fsmStateName = typeof state.value === 'string' ? state.value : JSON.stringify(state.value)
+  const fsmContext = state.context
+  const isSubmitting = !['IDLE', 'FAILED', 'MERGED'].includes(fsmStateName)
+
+  // Load tasks on mount only
+  useEffect(() => {
+    persistenceAdapter.loadTasksByUser(USER_ID).then((persisted) => {
+      const loaded = persisted.map((p) => p.data)
+      loaded.forEach((t) => {
+        const store = getTasks()
+        if (!store.find((s) => s.id === t.id)) store.push(t)
+      })
+      setTasks(loaded)
+    })
+
+    // Dev-only: seed tasks and wire @xstate/inspect
+    if (process.env.NODE_ENV === 'development') {
+      import('../../lib/qaods/devSeeds').then(({ seedDevTasks }) => {
+        seedDevTasks(persistenceAdapter).then(() => {
+          persistenceAdapter.loadTasksByUser(USER_ID).then((persisted) => {
+            const loaded = persisted.map((p) => p.data)
+            loaded.forEach((t) => {
+              const store = getTasks()
+              if (!store.find((s) => s.id === t.id)) store.push(t)
+            })
+            setTasks(loaded)
+          })
+        })
+      })
+
+      import('@xstate/inspect').then(({ inspect }) => {
+        inspect({ iframe: false })
+      }).catch(() => { /* inspect not critical */ })
+    }
+  }, [])
+
+  // Refresh audit entries whenever FSM state changes
+  useEffect(() => {
+    setAuditEntries([...auditLogger.getAll()])
+  }, [fsmStateName])
+
   const selectedTask = tasks.find((t) => t.id === selectedId) ?? null
-  const selectedTaskLog = auditLog.filter((e) => e.taskId === selectedId)
-  const prompt = selectedTask ? generatePrompt(selectedTask) : null
+  const selectedTaskAudit = auditEntries.filter((e) => e.taskId === selectedId)
+
   const filteredTasks = tasks.filter((task) => {
     const matchesTitle = task.title.toLowerCase().includes(searchQuery.trim().toLowerCase())
     const matchesStatus = statusFilter === 'all' || task.status === statusFilter
@@ -43,33 +85,7 @@ export default function QAODSPage() {
     return matchesTitle && matchesStatus && matchesPriority
   })
 
-  useEffect(() => {
-    const savedTasks = loadTasks()
-    const savedAudit = loadAudit()
-    const taskStore = getTasks()
-    const auditStore = getAuditLog()
-
-    taskStore.splice(0, taskStore.length, ...savedTasks)
-    auditStore.splice(0, auditStore.length, ...savedAudit)
-
-    if (savedTasks.length > 0) {
-      setTasks(savedTasks)
-    }
-
-    if (savedAudit.length > 0) {
-      setAuditLog(savedAudit)
-    }
-  }, [])
-
-  useEffect(() => {
-    saveTasks(tasks)
-  }, [tasks])
-
-  useEffect(() => {
-    saveAudit(auditLog)
-  }, [auditLog])
-
-  const handleCreateTask = (data: TaskFormSubmitData) => {
+  const handleCreateTask = useCallback((data: TaskFormSubmitData) => {
     const component = data.component.trim() || 'Module'
     const newTask = createTask({
       title: data.title.trim(),
@@ -79,29 +95,32 @@ export default function QAODSPage() {
       priority: data.priority,
       tags: data.tags,
       status: 'todo',
+      userId: USER_ID,
+      teamId: 'default',
     })
+    persistenceAdapter.saveTask(newTask)
     setTasks((prev) => [...prev, newTask])
-    logAction(newTask.id, 'created', newTask.title)
-    setAuditLog([...getAuditLog()])
     setSelectedId(newTask.id)
     setShowForm(false)
-  }
+    send({ type: 'CREATE_TASK', task: newTask })
+  }, [send])
 
-  const handleStatusChange = (id: string, status: TaskStatus) => {
-    const prev = tasks.find((t) => t.id === id)
+  const handleSelectTask = useCallback((id: string) => {
+    const task = tasks.find((t) => t.id === id)
+    if (!task) return
+    setSelectedId(id)
+    send({ type: 'SELECT_TASK', task })
+  }, [tasks, send])
+
+  const handleStatusChange = useCallback((id: string, status: TaskStatus) => {
     const updated = updateTask(id, { status })
-
     if (updated) {
+      persistenceAdapter.saveTask(updated)
       setTasks([...getTasks()])
-      const from = prev ? statusAuditLabel(prev.status) : 'unknown'
-      const to = statusAuditLabel(status)
-      logAction(id, 'status_change', `${from} → ${to}`)
-      setAuditLog([...getAuditLog()])
     }
-  }
+  }, [])
 
-  const handleUpdateTask = (id: string, updatedData: TaskUpdateData) => {
-    const prev = tasks.find((t) => t.id === id)
+  const handleUpdateTask = useCallback((id: string, updatedData: TaskUpdateData) => {
     const component = updatedData.component.trim() || 'Module'
     const updated = updateTask(id, {
       title: updatedData.title,
@@ -111,28 +130,25 @@ export default function QAODSPage() {
       priority: updatedData.priority,
       tags: updatedData.tags,
     })
-
     if (updated) {
+      persistenceAdapter.saveTask(updated)
       setTasks([...getTasks()])
-      logAction(id, 'edited', `${prev?.title ?? 'Task'} → ${updated.title}`)
-      setAuditLog([...getAuditLog()])
     }
-  }
+  }, [])
 
-  const handleIterate: TaskIterateHandler = (id) => {
-    const prev = tasks.find((t) => t.id === id)
-    if (!prev || prev.iterationCount >= MAX_TASK_ITERATIONS) return
-    const updated = updateTask(id, { iterationCount: prev.iterationCount + 1 })
+  const handleIterate = useCallback((id: string) => {
+    const task = tasks.find((t) => t.id === id)
+    if (!task) return
+    const updated = updateTask(id, { iterationCount: task.iterationCount + 1 })
     if (updated) {
+      persistenceAdapter.saveTask(updated)
       setTasks([...getTasks()])
-      logAction(
-        id,
-        'iteration',
-        `iteration ${updated.iterationCount} of ${MAX_TASK_ITERATIONS}`
-      )
-      setAuditLog([...getAuditLog()])
     }
-  }
+  }, [tasks])
+
+  const handleApprove = useCallback(() => send({ type: 'APPROVE' }), [send])
+  const handleReject = useCallback(() => send({ type: 'REJECT' }), [send])
+  const handleReset = useCallback(() => send({ type: 'RESET' }), [send])
 
   return (
     <div className="flex flex-col h-screen bg-[#040810] text-slate-300 font-sans">
@@ -145,7 +161,7 @@ export default function QAODSPage() {
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <ExpertButton tasks={tasks} auditLog={auditLog} />
+          <ExpertButton tasks={tasks} auditLog={auditEntries} />
           <button
             type="button"
             onClick={() => setShowForm((f) => !f)}
@@ -156,7 +172,7 @@ export default function QAODSPage() {
         </div>
       </div>
 
-      {/* New task form — slides in below header */}
+      {/* New task form */}
       <div
         className={`grid shrink-0 transition-[grid-template-rows] duration-300 ease-out ${
           showForm ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
@@ -169,7 +185,7 @@ export default function QAODSPage() {
             }`}
             aria-hidden={!showForm}
           >
-            <TaskForm onSubmit={handleCreateTask} />
+            <TaskForm onSubmit={handleCreateTask} isSubmitting={isSubmitting} />
           </div>
         </div>
       </div>
@@ -187,7 +203,7 @@ export default function QAODSPage() {
               tasks={filteredTasks}
               totalCount={tasks.length}
               selectedId={selectedId}
-              onSelect={setSelectedId}
+              onSelect={handleSelectTask}
               searchQuery={searchQuery}
               onSearchQueryChange={setSearchQuery}
               statusFilter={statusFilter}
@@ -202,6 +218,7 @@ export default function QAODSPage() {
         <div className="flex-1 border-r border-gray-900 flex flex-col overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-900 shrink-0">
             <span className="text-xs text-gray-600 font-mono tracking-widest">TASK DETAIL</span>
+            <span className="ml-2 text-xs text-blue-600 font-mono">{fsmStateName}</span>
           </div>
           <div className="flex-1 overflow-y-auto">
             <TaskDetail
@@ -209,6 +226,12 @@ export default function QAODSPage() {
               onStatusChange={handleStatusChange}
               onUpdate={handleUpdateTask}
               onIterate={handleIterate}
+              fsmState={fsmStateName}
+              fsmContext={fsmContext}
+              activeTaskId={fsmContext.taskId}
+              onApprove={handleApprove}
+              onReject={handleReject}
+              onReset={handleReset}
             />
           </div>
           {selectedTask && (
@@ -216,7 +239,7 @@ export default function QAODSPage() {
               <div className="px-4 py-2">
                 <span className="text-xs text-gray-600 font-mono tracking-widest">AUDIT LOG</span>
               </div>
-              <AuditLogViewer entries={selectedTaskLog} />
+              <AuditLogViewer entries={selectedTaskAudit} />
             </div>
           )}
         </div>
@@ -227,10 +250,21 @@ export default function QAODSPage() {
             <span className="text-xs text-gray-600 font-mono tracking-widest">CURSOR PROMPT</span>
           </div>
           <div className="flex-1 overflow-hidden flex flex-col">
-            <PromptPanel prompt={prompt} />
+            <PromptPanel prompt={fsmContext.promptPayload ?? null} />
           </div>
         </div>
       </div>
+
+      {/* Dev-only FSM inspector */}
+      <FSMInspector state={fsmStateName} context={fsmContext} />
     </div>
+  )
+}
+
+export default function QAODSPage() {
+  return (
+    <QAODSErrorBoundary>
+      <QAODSPageInner />
+    </QAODSErrorBoundary>
   )
 }

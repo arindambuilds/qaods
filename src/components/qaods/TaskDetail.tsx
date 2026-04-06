@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Task, TaskPriority, TaskStatus } from '../../lib/qaods/types'
+import { Task, TaskPriority, TaskStatus, WorkflowState, QAODSContext } from '../../lib/qaods/types'
 import { MAX_TASK_ITERATIONS, validateTaskActivation } from '../../lib/qaods/executionController'
 import StatusBadge from './StatusBadge'
 
@@ -18,6 +18,27 @@ interface TaskDetailProps {
   onStatusChange: (id: string, status: TaskStatus) => void
   onUpdate: (id: string, updatedData: TaskUpdateData) => void
   onIterate: TaskIterateHandler
+  /** The raw FSM state string from the live machine */
+  fsmState?: string
+  /** The FSM context from the live machine */
+  fsmContext?: QAODSContext
+  /** The taskId currently loaded in the FSM */
+  activeTaskId?: string | null
+  /** Dispatch APPROVE to the FSM */
+  onApprove?: () => void
+  /** Dispatch REJECT to the FSM */
+  onReject?: () => void
+  /** Dispatch RESET to the FSM */
+  onReset?: () => void
+}
+
+const WORKFLOW_STATES: WorkflowState[] = [
+  'IDLE', 'PENDING', 'STRATEGIST', 'RESEARCHER', 'EXECUTOR', 'AUDITOR', 'POST_AUDIT', 'FAILED',
+]
+
+function parseWorkflowState(raw: string | undefined): WorkflowState | null {
+  if (!raw) return null
+  return (WORKFLOW_STATES as string[]).includes(raw) ? (raw as WorkflowState) : null
 }
 
 function statusDescription(status: TaskStatus): string {
@@ -35,7 +56,7 @@ function statusDescription(status: TaskStatus): string {
   }
 }
 
-export default function TaskDetail({ task, onStatusChange, onUpdate, onIterate }: TaskDetailProps) {
+export default React.memo(function TaskDetail({ task, onStatusChange, onUpdate, onIterate, fsmState, fsmContext, activeTaskId, onApprove, onReject, onReset }: TaskDetailProps) {
   const [error, setError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [title, setTitle] = useState('')
@@ -51,6 +72,13 @@ export default function TaskDetail({ task, onStatusChange, onUpdate, onIterate }
       </div>
     )
   }
+
+  const isActiveFsmTask = activeTaskId != null && task.id === activeTaskId
+  const liveWs = parseWorkflowState(fsmState)
+  const badgeWorkflowState: WorkflowState | undefined =
+    isActiveFsmTask && liveWs !== null ? liveWs : task.workflowState
+  const effectiveState: WorkflowState | undefined =
+    isActiveFsmTask && liveWs !== null ? liveWs : task.workflowState
 
   const buttonClass = 'text-xs px-3 py-1.5 rounded font-medium transition-colors'
 
@@ -79,7 +107,7 @@ export default function TaskDetail({ task, onStatusChange, onUpdate, onIterate }
         <h2 className="text-sm font-bold text-slate-200">{task.title}</h2>
         <StatusBadge status={task.status} />
         <span className="text-xs text-gray-500 font-mono">
-          ({statusDescription(task.status)})
+          ({statusDescription(task.status)}{badgeWorkflowState !== undefined ? ` · FSM: ${badgeWorkflowState}` : ''})
         </span>
         {!isEditing && (
           <button
@@ -243,6 +271,14 @@ export default function TaskDetail({ task, onStatusChange, onUpdate, onIterate }
           </div>
           <div className="text-xs text-slate-400">{new Date(task.updatedAt).toLocaleString()}</div>
         </div>
+        {effectiveState !== undefined && (
+          <div>
+            <div className="text-xs text-gray-600 font-mono uppercase tracking-wider mb-1">
+              FSM
+            </div>
+            <div className="text-xs text-slate-400 font-mono">{effectiveState}</div>
+          </div>
+        )}
         </div>
       )}
 
@@ -261,6 +297,47 @@ export default function TaskDetail({ task, onStatusChange, onUpdate, onIterate }
             Actions
           </div>
           <div className="flex gap-2 flex-wrap items-center">
+            {/* FSM FAILED state: show error details */}
+            {effectiveState === 'FAILED' && fsmContext?.failureError && (
+              <div className="w-full rounded border border-red-900/60 bg-red-950/30 p-3 mb-1">
+                <div className="text-xs text-red-400 font-mono font-semibold mb-1">
+                  FSM FAILED — {fsmContext.failureError.code}
+                </div>
+                <div className="text-xs text-red-300/80 font-mono whitespace-pre-wrap break-words">
+                  {fsmContext.failureError.message}
+                </div>
+              </div>
+            )}
+
+            {/* FSM action buttons */}
+            {onApprove && (
+              <button
+                type="button"
+                onClick={onApprove}
+                className={`${buttonClass} bg-green-900 hover:bg-green-800 text-green-200`}
+              >
+                Approve
+              </button>
+            )}
+            {onReject && (
+              <button
+                type="button"
+                onClick={onReject}
+                className={`${buttonClass} bg-red-900/60 hover:bg-red-900 text-red-300`}
+              >
+                Reject
+              </button>
+            )}
+            {onReset && (
+              <button
+                type="button"
+                onClick={onReset}
+                className={`${buttonClass} bg-gray-800 hover:bg-gray-700 text-gray-300`}
+              >
+                Reset
+              </button>
+            )}
+
             <button
               type="button"
               disabled={iterationAtLimit}
@@ -342,4 +419,4 @@ export default function TaskDetail({ task, onStatusChange, onUpdate, onIterate }
       )}
     </div>
   )
-}
+})
