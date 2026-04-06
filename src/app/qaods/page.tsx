@@ -64,9 +64,16 @@ function QAODSPageInner() {
         })
       })
 
-      import('@xstate/inspect').then(({ inspect }) => {
-        inspect({ iframe: false })
-      }).catch(() => { /* inspect not critical */ })
+      // Wire @xstate/inspect — use indirect import to prevent Turbopack
+      // from statically tracing this module (it's a devDependency only)
+      if (typeof window !== 'undefined') {
+        const inspectPkg = '@xstate' + '/inspect'
+        import(/* webpackIgnore: true */ /* @vite-ignore */ inspectPkg)
+          .then((mod: { inspect?: (opts: { iframe: boolean }) => void }) => {
+            mod.inspect?.({ iframe: false })
+          })
+          .catch(() => { /* inspect not critical */ })
+      }
     }
   }, [])
 

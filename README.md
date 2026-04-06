@@ -185,6 +185,30 @@ Potential next steps:
 
 ---
 
+## Security & Hardening
+
+### Current state (local-first prototype)
+
+- **Single-user, no auth** — this is a local-first prototype. There are no server-side secrets, no authentication layer, and no multi-user isolation beyond scoped localStorage keys (`qaods:task:{userId}:{taskId}`).
+- **No secrets in localStorage** — the persistence adapter stores only task metadata (title, description, component, filePath, priority, tags, status). `PromptPayload` (which may contain sensitive task context) is explicitly never persisted.
+- **No `localStorage.clear()`** — all cleanup goes through the scoped adapter (`deleteTask`, `deleteLog`). No bulk wipes.
+- **No unsafe HTML** — zero `dangerouslySetInnerHTML` usage. All user-supplied strings are rendered as plain text via React's default escaping.
+- **Structured logging with metadata only** — log events at `info` level carry only IDs, scores, character counts, and status flags — not raw prompt text or full user input. Full prompt content is only emitted at `debug` level (suppressed in production via `filterLevel: 'warn'`).
+- **HTTP security headers** — `next.config.ts` sets `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `X-XSS-Protection`, and `Permissions-Policy` on all routes.
+- **Dev tooling is dev-only** — `@xstate/inspect`, `FSMInspector`, and `devSeeds` are all guarded by `process.env.NODE_ENV === 'development'` and `typeof window !== 'undefined'` checks. The inspect import uses an indirect string to prevent Turbopack from bundling it in production.
+
+### Future SaaS hardening checklist
+
+- [ ] **Auth layer** — add NextAuth / Auth.js / Supabase Auth; gate all routes and API endpoints.
+- [ ] **Content-Security-Policy** — add a nonce-based CSP header in `next.config.ts` once the auth/API layer is in place.
+- [ ] **HTTPS + HSTS** — enforce `Strict-Transport-Security` at the CDN/reverse-proxy layer (Vercel/Cloudflare handle this automatically).
+- [ ] **Server-side input validation** — add Zod schemas on all API routes / server actions before any DB writes.
+- [ ] **Move logs to backend** — replace `LocalStorageTransport` with a `RemoteTransport` that POSTs to `/api/logs` (already stubbed) with auth headers; add rate limiting.
+- [ ] **Secrets management** — use environment variables (`.env.local`, Vercel env) for API keys; never commit `.env` files.
+- [ ] **Supabase RLS** — when swapping the persistence adapter, enable Row-Level Security policies scoped to `userId`/`teamId`.
+
+---
+
 ## License
 
 [MIT](LICENSE)
