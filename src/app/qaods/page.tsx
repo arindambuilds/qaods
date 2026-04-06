@@ -19,6 +19,10 @@ function defaultFilePathForComponent(component: string): string {
   return `src/components/${slug}.tsx`
 }
 
+function statusAuditLabel(status: TaskStatus): string {
+  return status === 'active' ? 'in-progress' : status
+}
+
 export default function QAODSPage() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -79,7 +83,9 @@ export default function QAODSPage() {
 
     if (updated) {
       setTasks([...getTasks()])
-      logAction(id, 'status_change', `${prev?.status ?? ''} → ${status}`)
+      const from = prev ? statusAuditLabel(prev.status) : 'unknown'
+      const to = statusAuditLabel(status)
+      logAction(id, 'status_change', `${from} → ${to}`)
       setAuditLog([...getAuditLog()])
     }
   }
