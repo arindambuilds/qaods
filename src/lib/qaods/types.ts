@@ -113,3 +113,79 @@ export interface ExecutionContext {
   promptPayload: PromptPayload
   strategyResult: StrategyResult
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Critical Document domain
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Doc type registry ─────────────────────────────────────────────────────
+// Add new document types here as the domain grows.
+export type DocType = 'exam_form_cbse_v1' | 'resume_simple_v1'
+
+// ── Field schema ──────────────────────────────────────────────────────────
+// Describes a single fillable field in a document template.
+export interface DocField {
+  id: string
+  label: string
+  type: 'text' | 'number' | 'date' | 'select'
+  required: boolean
+  options?: string[]      // for type === 'select'
+  pattern?: string        // regex validation string
+  minLength?: number
+  maxLength?: number
+}
+
+// ── Audit types ───────────────────────────────────────────────────────────
+export type DocIssueSeverity = 'error' | 'warn'
+
+export interface DocIssue {
+  fieldId: string | null  // null = document-level issue (not field-specific)
+  severity: DocIssueSeverity
+  code: string            // machine-readable, e.g. 'REQUIRED_MISSING', 'PATTERN_MISMATCH'
+  message: string         // human-readable
+}
+
+export interface DocAuditResult {
+  score: number           // 0–100, same scale as QAODSContext.auditResult
+  passed: boolean         // score >= DOC_AUDIT_THRESHOLD (defined in criticalDocMachine)
+  issues: DocIssue[]
+}
+
+// ── FSM context for the Critical Doc pipeline ─────────────────────────────
+// Intentionally separate from QAODSContext — the two machines are independent.
+// Both follow the same Q-AODS FSM patterns (PENDING → ... → MERGED/FAILED,
+// score-gated retries, withAgentRetry, auditLogger).
+export interface CriticalDocContext {
+  // Session identity
+  sessionId: string
+  userId: string
+
+  // Document being processed
+  docType: DocType | null
+  fieldsManifest: DocField[]      // loaded from the doc template registry
+  userInputs: Record<string, string>  // fieldId → raw user value
+
+  // Pipeline results (cleared on RESET)
+  generatedDoc: string | null     // rendered HTML or JSON string
+  auditResult: DocAuditResult | null
+
+  // Iteration tracking — mirrors QAODSContext shape
+  iterationCount: number
+
+  // Failure info (set on FAILED transition)
+  failedAgent?: string
+  failureError?: import('./errors').QAODSError
+  finalScore?: number
+  iterationsUsed?: number
+}
+
+// ── Agent result types for the Critical Doc pipeline ──────────────────────
+export interface DocGenerationResult {
+  generatedDoc: string    // rendered output (HTML or JSON)
+  fieldsUsed: string[]    // fieldIds that were included
+}
+
+export interface DocValidationResult {
+  validationStatus: 'valid' | 'invalid'
+  issues: DocIssue[]
+}
