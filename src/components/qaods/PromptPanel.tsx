@@ -7,30 +7,40 @@ interface PromptPanelProps {
 export default function PromptPanel({ prompt }: PromptPanelProps) {
   const [copied, setCopied] = useState(false)
 
-  const handleCopy = () => {
-    if (!prompt) return
-    navigator.clipboard.writeText(prompt)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+  if (prompt === null) {
+    return (
+      <div className="p-4 text-xs text-gray-600 font-mono">
+        Select a task to generate prompt
+      </div>
+    )
   }
 
   return (
     <div className="flex flex-col h-full">
-      {!prompt ? (
-        <p className="text-gray-600 text-sm">Select a task to generate prompt</p>
-      ) : (
-        <>
-          <pre className="flex-1 overflow-y-auto text-xs font-mono text-gray-300 bg-gray-900 border border-gray-800 rounded p-3 whitespace-pre-wrap break-words">
-            {prompt}
-          </pre>
-          <div
-            onClick={handleCopy}
-            className="cursor-pointer mt-3 text-center text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 rounded px-3 py-1.5 font-medium"
-          >
-            {copied ? 'Copied!' : 'Copy Prompt'}
-          </div>
-        </>
-      )}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-900">
+        <span className="text-xs text-gray-500 font-mono">CURSOR PROMPT</span>
+        <button
+          type="button"
+          onClick={() => {
+            navigator.clipboard.writeText(prompt)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 1500)
+          }}
+          className={`text-xs px-3 py-1 rounded font-mono transition-colors ${
+            copied
+              ? 'bg-green-900 text-green-300'
+              : 'bg-gray-800 hover:bg-gray-700 text-gray-400'
+          }`}
+        >
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-auto p-4">
+        <pre className="text-xs text-slate-400 font-mono leading-relaxed whitespace-pre-wrap break-words">
+          {prompt}
+        </pre>
+      </div>
     </div>
   )
 }
