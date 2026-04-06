@@ -31,7 +31,10 @@ function TaskList({ tasks, selectedId, onSelect }: TaskListProps) {
                   {task.title}
                 </div>
                 <div className="text-xs text-gray-600 font-mono truncate">
-                  {task.component}
+                  {task.component || '—'}
+                </div>
+                <div className="mt-0.5 text-[10px] uppercase tracking-wide text-gray-500">
+                  {task.priority ?? 'medium'}
                 </div>
               </div>
               <StatusBadge status={task.status} />

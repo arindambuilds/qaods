@@ -14,7 +14,12 @@ export function loadTasks(): Task[] {
   try {
     const raw = localStorage.getItem('qaods_tasks')
     if (raw === null) return []
-    return JSON.parse(raw) as Task[]
+    const parsed = JSON.parse(raw) as Task[]
+    return parsed.map((t) => ({
+      ...t,
+      priority: t.priority ?? 'medium',
+      tags: t.tags ?? '',
+    }))
   } catch {
     return []
   }

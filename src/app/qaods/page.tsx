@@ -7,13 +7,17 @@ import { generatePrompt } from '../../lib/qaods/promptGenerator'
 import { logAction, getAuditLog } from '../../lib/qaods/auditLogger'
 import { saveTasks, loadTasks, saveAudit, loadAudit } from '../../lib/qaods/persistence'
 import TaskList from '../../components/qaods/task-list'
-import TaskForm from '../../components/qaods/task-form'
+import TaskForm, { TaskFormSubmitData } from '../../components/qaods/task-form'
 import TaskDetail from '../../components/qaods/TaskDetail'
 import PromptPanel from '../../components/qaods/PromptPanel'
 import AuditLogViewer from '../../components/qaods/AuditLogViewer'
 import ExpertButton from '../../components/qaods/ExpertButton'
 
-type TaskInput = Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'iterationCount' | 'status'>
+function defaultFilePathForComponent(component: string): string {
+  const comp = component.trim() || 'Module'
+  const slug = comp.replace(/[^\w.-]/g, '') || 'Module'
+  return `src/components/${slug}.tsx`
+}
 
 export default function QAODSPage() {
   const [tasks, setTasks] = useState<Task[]>([])
@@ -51,8 +55,17 @@ export default function QAODSPage() {
     saveAudit(auditLog)
   }, [auditLog])
 
-  const handleCreateTask = (data: TaskInput) => {
-    const newTask = createTask({ ...data, status: 'todo' })
+  const handleCreateTask = (data: TaskFormSubmitData) => {
+    const component = data.component.trim() || 'Module'
+    const newTask = createTask({
+      title: data.title.trim(),
+      description: data.description,
+      component,
+      filePath: defaultFilePathForComponent(component),
+      priority: data.priority,
+      tags: data.tags,
+      status: 'todo',
+    })
     setTasks((prev) => [...prev, newTask])
     logAction(newTask.id, 'created', newTask.title)
     setAuditLog([...getAuditLog()])
@@ -93,12 +106,23 @@ export default function QAODSPage() {
         </div>
       </div>
 
-      {/* New task form — shown inline when showForm is true */}
-      {showForm && (
-        <div className="border-b border-gray-900 bg-[#060c18] shrink-0">
-          <TaskForm onSubmit={handleCreateTask} />
+      {/* New task form — slides in below header */}
+      <div
+        className={`grid shrink-0 transition-[grid-template-rows] duration-300 ease-out ${
+          showForm ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+        }`}
+      >
+        <div className="min-h-0 overflow-hidden border-b border-gray-900 bg-[#060c18]">
+          <div
+            className={`max-h-[min(70vh,560px)] overflow-y-auto transition duration-300 ease-out ${
+              showForm ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0 pointer-events-none'
+            }`}
+            aria-hidden={!showForm}
+          >
+            <TaskForm onSubmit={handleCreateTask} />
+          </div>
         </div>
-      )}
+      </div>
 
       {/* Main 3-column layout */}
       <div className="flex flex-1 overflow-hidden">

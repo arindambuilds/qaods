@@ -43,6 +43,20 @@ export default function TaskDetail({ task, onStatusChange }: TaskDetailProps) {
         </div>
         <div>
           <div className="text-xs text-gray-600 font-mono uppercase tracking-wider mb-1">
+            Priority
+          </div>
+          <div className="text-xs text-slate-400 capitalize">{task.priority}</div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-600 font-mono uppercase tracking-wider mb-1">
+            Tags
+          </div>
+          <div className="text-xs text-slate-400 font-mono break-all">
+            {task.tags?.trim() ? task.tags : '—'}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-600 font-mono uppercase tracking-wider mb-1">
             Iterations
           </div>
           <div className="text-xs text-slate-400">{task.iterationCount}/2</div>

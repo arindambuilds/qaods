@@ -1,29 +1,43 @@
 import React, { useState } from 'react'
-import { Task } from '../../lib/qaods/types'
+import { TaskPriority } from '../../lib/qaods/types'
+
+export interface TaskFormSubmitData {
+  title: string
+  description: string
+  component: string
+  priority: TaskPriority
+  tags: string
+}
 
 interface TaskFormProps {
-  onSubmit: (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'iterationCount' | 'status'>) => void
+  onSubmit: (data: TaskFormSubmitData) => void
 }
 
 export default function TaskForm({ onSubmit }: TaskFormProps) {
   const [title, setTitle] = useState('')
-  const [component, setComponent] = useState('')
-  const [filePath, setFilePath] = useState('')
   const [description, setDescription] = useState('')
+  const [component, setComponent] = useState('')
+  const [priority, setPriority] = useState<TaskPriority>('medium')
+  const [tags, setTags] = useState('')
 
   const inputClass =
     'w-full bg-gray-900 border border-gray-800 text-xs text-slate-300 rounded px-3 py-2 focus:outline-none focus:border-blue-800 placeholder:text-gray-700'
 
-  const handleCreateTask = () => {
-    if (!title.trim() || !component.trim() || !filePath.trim()) {
-      return
-    }
+  const handleSubmit = () => {
+    if (!title.trim()) return
 
-    onSubmit({ title, component, filePath, description })
+    onSubmit({
+      title: title.trim(),
+      description: description.trim(),
+      component: component.trim(),
+      priority,
+      tags: tags.trim(),
+    })
     setTitle('')
-    setComponent('')
-    setFilePath('')
     setDescription('')
+    setComponent('')
+    setPriority('medium')
+    setTags('')
   }
 
   return (
@@ -40,39 +54,52 @@ export default function TaskForm({ onSubmit }: TaskFormProps) {
       </label>
 
       <label className="block text-xs text-gray-500 font-mono mb-1">
-        Component
-        <input
-          value={component}
-          onChange={(e) => setComponent(e.target.value)}
-          placeholder="ComponentName"
-          className={inputClass}
-        />
-      </label>
-
-      <label className="block text-xs text-gray-500 font-mono mb-1">
-        File Path
-        <input
-          value={filePath}
-          onChange={(e) => setFilePath(e.target.value)}
-          placeholder="src/components/Example.tsx"
-          className={inputClass}
-        />
-      </label>
-
-      <label className="block text-xs text-gray-500 font-mono mb-1">
         Description
         <textarea
           rows={3}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="What specifically changes..."
+          placeholder="What needs to happen…"
+          className={inputClass}
+        />
+      </label>
+
+      <label className="block text-xs text-gray-500 font-mono mb-1">
+        Component
+        <input
+          value={component}
+          onChange={(e) => setComponent(e.target.value)}
+          placeholder="AuthModule"
+          className={inputClass}
+        />
+      </label>
+
+      <label className="block text-xs text-gray-500 font-mono mb-1">
+        Priority
+        <select
+          value={priority}
+          onChange={(e) => setPriority(e.target.value as TaskPriority)}
+          className={`${inputClass} cursor-pointer`}
+        >
+          <option value="low">low</option>
+          <option value="medium">medium</option>
+          <option value="high">high</option>
+        </select>
+      </label>
+
+      <label className="block text-xs text-gray-500 font-mono mb-1">
+        Tags
+        <input
+          value={tags}
+          onChange={(e) => setTags(e.target.value)}
+          placeholder="auth, api, bugfix"
           className={inputClass}
         />
       </label>
 
       <button
         type="button"
-        onClick={handleCreateTask}
+        onClick={handleSubmit}
         className="w-full bg-blue-900 hover:bg-blue-800 text-blue-200 text-xs font-medium py-2 rounded mt-1 transition-colors"
       >
         Create Task

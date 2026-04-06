@@ -1,4 +1,5 @@
 export type TaskStatus = 'todo' | 'active' | 'done' | 'blocked'
+export type TaskPriority = 'low' | 'medium' | 'high'
 
 export interface Task {
   id: string
@@ -6,6 +7,8 @@ export interface Task {
   component: string
   filePath: string
   description: string
+  priority: TaskPriority
+  tags: string
   status: TaskStatus
   iterationCount: number
   createdAt: string
