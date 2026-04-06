@@ -189,3 +189,43 @@ export interface DocValidationResult {
   validationStatus: 'valid' | 'invalid'
   issues: DocIssue[]
 }
+
+// ── Rule engine ───────────────────────────────────────────────────────────
+// A Rule is a pure function: given normalised inputs, it returns zero or more
+// DocIssues. Rules are stored in the template and evaluated by the Auditor.
+export type RuleId = string
+
+export interface Rule {
+  id: RuleId
+  description: string
+  // Weight used in the Auditor's scoring (0–1, must sum to ≤ 1 across all rules)
+  weight: number
+  evaluate: (inputs: Record<string, string>) => DocIssue[]
+}
+
+// ── Critical Doc agent result types ───────────────────────────────────────
+export interface CriticalDocStrategyResult {
+  docType: DocType
+  templateId: string
+  fieldsManifest: DocField[]
+}
+
+export interface CriticalDocResearchResult {
+  rules: Rule[]
+  lastVerifiedAt: string
+}
+
+export interface CriticalDocExecutionResult {
+  normalizedInputs: Record<string, string>
+  generatedDoc: string    // HTML stub
+}
+
+// ── Template shape ────────────────────────────────────────────────────────
+export interface DocTemplate {
+  id: string
+  version: number
+  docType: DocType
+  fieldsManifest: DocField[]
+  rules: Rule[]
+  lastVerifiedAt: string  // ISO-8601
+}
