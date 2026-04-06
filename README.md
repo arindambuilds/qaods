@@ -4,11 +4,80 @@
 
 ---
 
-## The Problem
+## What this MVP does
 
-Most AI coding tools fire a single prompt and hope for the best. There is no structured retry logic, no audit trail, no way to know whether the output actually met the requirements, and no clean separation between the orchestration layer and the agents doing the work.
+Q-AODS is an **orchestration architecture demo** — it shows what a production-grade AI dev pipeline looks like when built properly:
 
-Q-AODS solves this by running every task through a formal finite state machine that coordinates four agents in sequence, scores the result against a quality threshold, and automatically iterates up to a configurable limit before surfacing a typed failure with full context.
+- A formal **XState v5 finite state machine** drives four agents in sequence: Strategist → Researcher → Executor → Auditor.
+- The Auditor scores output **0–100**. If the score is below the HSCC threshold (85), the pipeline automatically **iterates** (up to 2 times) before declaring `FAILED`.
+- Every run produces a **typed audit trail**, structured logs, and a versioned persisted task — all without a backend.
+- The agent logic is **simulated** (no real LLM calls). This is an architecture and orchestration demo, not a production AI tool.
+
+---
+
+## Run it locally
+
+### Prerequisites
+
+- Node.js 18+, npm 9+
+
+### Steps
+
+```bash
+# 1. Clone
+git clone https://github.com/arindambuilds/qaods.git
+
+# 2. Enter the Next.js app (the app lives in the qaods/ subfolder)
+cd qaods/qaods
+
+# 3. Install
+npm install
+
+# 4. Start dev server
+npm run dev
+```
+
+Open **[http://localhost:3000/qaods](http://localhost:3000/qaods)**
+
+> If port 3000 is taken, Next.js will print the actual port in the terminal — use that instead.
+> Run all commands from inside `qaods/qaods/`, not the repo root.
+
+---
+
+## Try this demo flow
+
+### Happy path — MERGED
+
+1. Click **+ New Task** (top right).
+2. Fill in: title, a description (e.g. "Add loading state to button"), component (`Button`), file path (`src/components/Button.tsx`).
+3. Click **Create Task**.
+4. Watch the FSM state in the header cycle through: `PENDING → STRATEGIST → RESEARCHER → EXECUTOR → AUDITOR → MERGED`.
+5. The Task Detail panel shows a green **MERGED** banner with the audit score.
+6. The Audit Log (bottom of center panel) shows all five trigger points.
+
+### Failure path — FAILED
+
+1. Open `src/lib/qaods/auditor.ts` and change the `completeness` line to return `50` unconditionally:
+   ```ts
+   const completeness = 50  // force low score
+   ```
+2. Save, create a new task, and run it.
+3. The pipeline will iterate twice then show a red **FAILED** banner with the score and reason.
+4. Click **Reset pipeline** to return to `IDLE`.
+
+### Reset
+
+- **Reset pipeline** button appears in the Task Detail panel when FSM is in `MERGED` or `FAILED`.
+- It clears all pipeline context and returns the FSM to `IDLE` — ready for a new task.
+
+---
+
+## MVP limitations
+
+- **localStorage only** — no backend, no database. Data lives in your browser.
+- **Single user** — no auth, no multi-user isolation.
+- **Agents are mocked** — Strategist, Executor, and Auditor use simulated logic. Plug in real LLM calls to make it production-ready.
+- **No external API** — the FSM runs entirely client-side.
 
 ---
 
@@ -117,44 +186,6 @@ Open **[http://localhost:3000/qaods](http://localhost:3000/qaods)** in your brow
 > - The repo root `package.json` has no Next.js — running `npm run dev` there will do nothing.
 > - If port 3000 is already in use, Next.js will automatically try 3001, 3002, etc. Check the terminal output for the actual URL.
 > - To stop a previous server: `Ctrl+C` in the terminal running it, or `npx kill-port 3000`.
-
----
-
-## Running the Pipeline
-
-### Create a task
-
-1. Click **+ New Task** in the top-right corner.
-2. Fill in a title, description, component name, and file path.
-3. Click **Create Task** — the FSM immediately transitions from `IDLE → PENDING` and begins the pipeline.
-
-### Watch the pipeline progress
-
-The FSM state is shown next to the **TASK DETAIL** header. You will see it move through:
-
-```
-IDLE → PENDING → STRATEGIST → RESEARCHER → EXECUTOR → AUDITOR → MERGED
-```
-
-If the audit score is below 85 and iterations remain, it loops:
-
-```
-AUDITOR → ITERATE → RESEARCHER → EXECUTOR → AUDITOR → ...
-```
-
-### Trigger the failure path
-
-To force a `FAILED` outcome, open `src/lib/qaods/auditor.ts` and temporarily lower the simulated scores so the average falls below 85. After two iterations the FSM will transition to `FAILED` and display the error code and message in the Task Detail panel.
-
-Alternatively, click **Reject** in the Task Detail panel while the FSM is in the `AUDITOR` state.
-
-### Reset
-
-Click **Reset** in the Task Detail panel (visible in `FAILED` state) to clear the FSM context and return to `IDLE`.
-
-### Dev inspector
-
-In development mode, a fixed overlay in the bottom-right corner shows the live FSM state and full context JSON. The `@xstate/inspect` devtools are also wired automatically.
 
 ---
 

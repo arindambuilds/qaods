@@ -11,7 +11,7 @@ export async function runExecutor(ctx: ExecutionContext): Promise<ExecutionResul
   agentLogger.debug('EXECUTOR_START', { taskId, userId, iterationCount })
 
   const result: ExecutionResult = {
-    delta: `// Simulated delta for task ${taskId}\n// Prompt: ${promptPayload.userPrompt.slice(0, 100)}`,
+    delta: `// Simulated delta for task ${taskId} (iteration ${iterationCount})`,
     filesChanged: [strategyResult.scopedComponent],
     status: 'success',
   }

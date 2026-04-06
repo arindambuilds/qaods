@@ -77,6 +77,22 @@ function QAODSPageInner() {
     }
   }, [])
 
+  // Persist workflowState to localStorage when FSM reaches a terminal state
+  useEffect(() => {
+    const taskId = fsmContext.taskId
+    if (!taskId) return
+    if (fsmStateName === 'MERGED' || fsmStateName === 'FAILED') {
+      const updated = updateTask(taskId, {
+        workflowState: fsmStateName,
+        status: fsmStateName === 'MERGED' ? 'done' : 'blocked',
+      })
+      if (updated) {
+        persistenceAdapter.saveTask(updated)
+        setTasks([...getTasks()])
+      }
+    }
+  }, [fsmStateName, fsmContext.taskId])
+
   // Refresh audit entries whenever FSM state changes
   useEffect(() => {
     setAuditEntries([...auditLogger.getAll()])

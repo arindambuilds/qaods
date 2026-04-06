@@ -19,6 +19,11 @@ const DEFAULT_BUDGET: PromptBudget = {
 
 const fsmLogger = logger.setDomain('fsm')
 
+// Log FSM transitions for debuggability
+function logTransition(from: string, to: string, fields?: Record<string, unknown>) {
+  fsmLogger.info('FSM_TRANSITION', { from, to, ...fields })
+}
+
 const initialContext: QAODSContext = {
   task: null,
   taskId: null,
@@ -187,6 +192,7 @@ export const qaodsMachine = createMachine(
             guard: 'auditPassed',
             target: 'MERGED',
             actions: ({ context }) => {
+              logTransition('AUDITOR', 'MERGED', { score: context.auditResult?.score, taskId: context.taskId })
               if (context.taskId) {
                 auditLogger.append({
                   taskId: context.taskId,
@@ -200,6 +206,7 @@ export const qaodsMachine = createMachine(
             guard: 'canIterate',
             target: 'ITERATE',
             actions: ({ context }) => {
+              logTransition('AUDITOR', 'ITERATE', { score: context.auditResult?.score, iterationCount: context.iterationCount, taskId: context.taskId })
               if (context.taskId) {
                 auditLogger.append({
                   taskId: context.taskId,
@@ -212,6 +219,7 @@ export const qaodsMachine = createMachine(
           {
             target: 'FAILED',
             actions: assign(({ context }) => {
+              logTransition('AUDITOR', 'FAILED', { score: context.auditResult?.score, iterationsUsed: context.iterationCount, taskId: context.taskId })
               if (context.taskId) {
                 auditLogger.append({
                   taskId: context.taskId,
@@ -240,13 +248,38 @@ export const qaodsMachine = createMachine(
         always: { target: 'RESEARCHER' },
       },
       MERGED: {
-        type: 'final' as const,
+        on: {
+          RESET: {
+            target: 'IDLE',
+            actions: assign(() => ({ ...initialContext })),
+          },
+          SELECT_TASK: {
+            target: 'IDLE',
+            actions: assign(({ event }) => ({
+              ...initialContext,
+              task: event.task as Task,
+              taskId: (event.task as Task).id,
+              userId: (event.task as Task).userId,
+              teamId: (event.task as Task).teamId,
+            })),
+          },
+        },
       },
       FAILED: {
         on: {
           RESET: {
             target: 'IDLE',
             actions: assign(() => ({ ...initialContext })),
+          },
+          SELECT_TASK: {
+            target: 'IDLE',
+            actions: assign(({ event }) => ({
+              ...initialContext,
+              task: event.task as Task,
+              taskId: (event.task as Task).id,
+              userId: (event.task as Task).userId,
+              teamId: (event.task as Task).teamId,
+            })),
           },
         },
       },
