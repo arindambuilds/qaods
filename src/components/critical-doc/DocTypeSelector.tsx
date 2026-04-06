@@ -6,12 +6,12 @@ const DOC_OPTIONS: { value: DocType; label: string; description: string }[] = [
   {
     value: 'exam_form_cbse_v1',
     label: 'CBSE Exam Registration Form',
-    description: 'Class 10 / 12 board exam registration — 16 fields, 7 deterministic rules',
+    description: 'Board exam application form',
   },
   {
     value: 'resume_simple_v1',
     label: 'Simple Resume',
-    description: 'Basic resume with name, email, experience, education',
+    description: 'Coming soon',
   },
 ]
 
@@ -21,27 +21,30 @@ interface Props {
 
 export default function DocTypeSelector({ onSelect }: Props) {
   return (
-    <div className="flex flex-col items-center justify-center h-full p-8 gap-6">
-      <div className="text-center">
-        <h2 className="text-lg font-semibold text-slate-200 mb-1">Select a document type</h2>
-        <p className="text-xs text-gray-500 font-mono">
-          The pipeline will load the correct fields and validation rules automatically.
-        </p>
-      </div>
-      <div className="flex flex-col gap-3 w-full max-w-md">
-        {DOC_OPTIONS.map(opt => (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => onSelect(opt.value)}
-            className="text-left rounded border border-gray-800 bg-gray-900/60 hover:bg-gray-800 hover:border-blue-800 px-4 py-3 transition-colors group"
-          >
-            <div className="text-sm font-medium text-slate-200 group-hover:text-blue-300">
-              {opt.label}
-            </div>
-            <div className="text-xs text-gray-500 mt-0.5">{opt.description}</div>
-          </button>
-        ))}
+    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 className="text-base font-semibold text-slate-800 mb-4">Document type</h2>
+      <div className="flex flex-col gap-3">
+        {DOC_OPTIONS.map(opt => {
+          const isDisabled = opt.value === 'resume_simple_v1'
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              disabled={isDisabled}
+              onClick={() => !isDisabled && onSelect(opt.value)}
+              className={[
+                'w-full text-left rounded-lg border p-4 transition-colors min-h-[44px]',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500',
+                isDisabled
+                  ? 'border-slate-200 bg-slate-50 opacity-50 cursor-not-allowed'
+                  : 'border-slate-200 bg-white hover:border-indigo-400 hover:bg-indigo-50',
+              ].join(' ')}
+            >
+              <p className="text-sm font-medium text-slate-900">{opt.label}</p>
+              <p className="text-xs text-slate-500 mt-0.5">{opt.description}</p>
+            </button>
+          )
+        })}
       </div>
     </div>
   )

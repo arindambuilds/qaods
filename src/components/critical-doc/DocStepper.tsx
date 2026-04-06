@@ -8,53 +8,59 @@ interface Props {
 }
 
 const STEPS: { id: Step; label: string }[] = [
-  { id: 'select', label: 'Select' },
-  { id: 'fill',   label: 'Fill'   },
-  { id: 'review', label: 'Review' },
-  { id: 'print',  label: 'Print'  },
+  { id: 'select', label: 'Select'  },
+  { id: 'fill',   label: 'Fill'    },
+  { id: 'review', label: 'Review'  },
+  { id: 'print',  label: 'Print'   },
 ]
 
 const ORDER: Step[] = ['select', 'fill', 'review', 'print']
 
 export default memo(function DocStepper({ current }: Props) {
   const displayStep = current === 'fix' ? 'review' : current
-  const currentIdx = ORDER.indexOf(displayStep)
+  const currentIdx  = ORDER.indexOf(displayStep)
 
   return (
-    <div className="flex items-center gap-0 px-6 py-3 border-b border-gray-900 bg-[#060c18] shrink-0">
+    <ol className="flex items-center w-full" aria-label="Progress">
       {STEPS.map((step, idx) => {
         const done    = idx < currentIdx
         const active  = idx === currentIdx
-        const pending = idx > currentIdx
+        const isFix   = current === 'fix' && step.id === 'review'
 
         return (
-          <React.Fragment key={step.id}>
-            <div className="flex items-center gap-1.5">
-              <span className={`
-                w-5 h-5 rounded-full text-[10px] font-mono font-bold flex items-center justify-center shrink-0
-                ${done    ? 'bg-green-800 text-green-300' : ''}
-                ${active  ? 'bg-blue-800 text-blue-200'   : ''}
-                ${pending ? 'bg-gray-800 text-gray-600'   : ''}
-              `}>
-                {done ? '✓' : idx + 1}
-              </span>
-              <span className={`text-xs font-mono ${
-                active  ? 'text-blue-300' :
-                done    ? 'text-green-400' :
-                          'text-gray-600'
-              }`}>
-                {step.label}
-                {current === 'fix' && step.id === 'review' && (
-                  <span className="text-amber-400 ml-1">(fix)</span>
-                )}
-              </span>
+          <li key={step.id} className="flex flex-1 items-center">
+            {/* Circle */}
+            <div
+              className={[
+                'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 select-none',
+                done || active
+                  ? 'bg-indigo-600 text-white'
+                  : 'border-2 border-slate-300 text-slate-400 bg-white',
+              ].join(' ')}
+              aria-current={active ? 'step' : undefined}
+            >
+              {done ? '✓' : idx + 1}
             </div>
+
+            {/* Label */}
+            <span className={[
+              'ml-2 text-xs whitespace-nowrap',
+              active  ? 'font-semibold text-indigo-600' : 'text-slate-400',
+            ].join(' ')}>
+              {step.label}
+              {isFix && <span className="text-amber-500 ml-1">(fix)</span>}
+            </span>
+
+            {/* Connector — skip after last step */}
             {idx < STEPS.length - 1 && (
-              <div className={`flex-1 h-px mx-2 ${done ? 'bg-green-800' : 'bg-gray-800'}`} />
+              <div className={[
+                'flex-1 h-px mx-3',
+                done ? 'bg-indigo-600' : 'bg-slate-200',
+              ].join(' ')} />
             )}
-          </React.Fragment>
+          </li>
         )
       })}
-    </div>
+    </ol>
   )
 })
