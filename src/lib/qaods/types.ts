@@ -152,9 +152,6 @@ export interface DocAuditResult {
 }
 
 // ── FSM context for the Critical Doc pipeline ─────────────────────────────
-// Intentionally separate from QAODSContext — the two machines are independent.
-// Both follow the same Q-AODS FSM patterns (PENDING → ... → MERGED/FAILED,
-// score-gated retries, withAgentRetry, auditLogger).
 export interface CriticalDocContext {
   // Session identity
   sessionId: string
@@ -162,19 +159,23 @@ export interface CriticalDocContext {
 
   // Document being processed
   docType: DocType | null
-  fieldsManifest: DocField[]      // loaded from the doc template registry
-  userInputs: Record<string, string>  // fieldId → raw user value
+  fieldsManifest: DocField[]
+  userInputs: Record<string, string>   // fieldId → raw user value (mutated by UPDATE_FIELD)
 
-  // Pipeline results (cleared on RESET)
-  generatedDoc: string | null     // rendered HTML or JSON string
+  // Pipeline results (cleared on CREATE_SESSION / RESET)
+  strategyResult: CriticalDocStrategyResult | null
+  researchResult: CriticalDocResearchResult | null
+  executionResult: CriticalDocExecutionResult | null
+  generatedDoc: string | null          // rendered HTML
   auditResult: DocAuditResult | null
 
-  // Iteration tracking — mirrors QAODSContext shape
+  // Iteration tracking
   iterationCount: number
 
   // Failure info (set on FAILED transition)
   failedAgent?: string
   failureError?: import('./errors').QAODSError
+  failureReason?: string               // human-readable summary of top issues
   finalScore?: number
   iterationsUsed?: number
 }
