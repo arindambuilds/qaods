@@ -1,14 +1,15 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Task, AuditEntry, TaskStatus } from '../../lib/qaods/types'
+import { Task, AuditEntry, TaskPriority, TaskStatus } from '../../lib/qaods/types'
 import { getTasks, createTask, updateTask } from '../../lib/qaods/taskStore'
 import { generatePrompt } from '../../lib/qaods/promptGenerator'
 import { logAction, getAuditLog } from '../../lib/qaods/auditLogger'
+import { MAX_TASK_ITERATIONS } from '../../lib/qaods/executionController'
 import { saveTasks, loadTasks, saveAudit, loadAudit } from '../../lib/qaods/persistence'
 import TaskList from '../../components/qaods/task-list'
 import TaskForm, { TaskFormSubmitData } from '../../components/qaods/task-form'
-import TaskDetail from '../../components/qaods/TaskDetail'
+import TaskDetail, { TaskIterateHandler, TaskUpdateData } from '../../components/qaods/TaskDetail'
 import PromptPanel from '../../components/qaods/PromptPanel'
 import AuditLogViewer from '../../components/qaods/AuditLogViewer'
 import ExpertButton from '../../components/qaods/ExpertButton'
@@ -28,10 +29,19 @@ export default function QAODSPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([])
   const [showForm, setShowForm] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus>('all')
+  const [priorityFilter, setPriorityFilter] = useState<'all' | TaskPriority>('all')
 
   const selectedTask = tasks.find((t) => t.id === selectedId) ?? null
   const selectedTaskLog = auditLog.filter((e) => e.taskId === selectedId)
   const prompt = selectedTask ? generatePrompt(selectedTask) : null
+  const filteredTasks = tasks.filter((task) => {
+    const matchesTitle = task.title.toLowerCase().includes(searchQuery.trim().toLowerCase())
+    const matchesStatus = statusFilter === 'all' || task.status === statusFilter
+    const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter
+    return matchesTitle && matchesStatus && matchesPriority
+  })
 
   useEffect(() => {
     const savedTasks = loadTasks()
@@ -90,6 +100,40 @@ export default function QAODSPage() {
     }
   }
 
+  const handleUpdateTask = (id: string, updatedData: TaskUpdateData) => {
+    const prev = tasks.find((t) => t.id === id)
+    const component = updatedData.component.trim() || 'Module'
+    const updated = updateTask(id, {
+      title: updatedData.title,
+      description: updatedData.description,
+      component,
+      filePath: defaultFilePathForComponent(component),
+      priority: updatedData.priority,
+      tags: updatedData.tags,
+    })
+
+    if (updated) {
+      setTasks([...getTasks()])
+      logAction(id, 'edited', `${prev?.title ?? 'Task'} → ${updated.title}`)
+      setAuditLog([...getAuditLog()])
+    }
+  }
+
+  const handleIterate: TaskIterateHandler = (id) => {
+    const prev = tasks.find((t) => t.id === id)
+    if (!prev || prev.iterationCount >= MAX_TASK_ITERATIONS) return
+    const updated = updateTask(id, { iterationCount: prev.iterationCount + 1 })
+    if (updated) {
+      setTasks([...getTasks()])
+      logAction(
+        id,
+        'iteration',
+        `iteration ${updated.iterationCount} of ${MAX_TASK_ITERATIONS}`
+      )
+      setAuditLog([...getAuditLog()])
+    }
+  }
+
   return (
     <div className="flex flex-col h-screen bg-[#040810] text-slate-300 font-sans">
       {/* Header */}
@@ -136,13 +180,20 @@ export default function QAODSPage() {
         <div className="w-64 shrink-0 border-r border-gray-900 flex flex-col overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-900">
             <span className="text-xs text-gray-600 font-mono tracking-widest">TASKS</span>
-            <span className="ml-2 text-xs text-gray-700">({tasks.length})</span>
+            <span className="ml-2 text-xs text-gray-700">({filteredTasks.length} of {tasks.length})</span>
           </div>
           <div className="flex-1 overflow-y-auto">
             <TaskList
-              tasks={tasks}
+              tasks={filteredTasks}
+              totalCount={tasks.length}
               selectedId={selectedId}
               onSelect={setSelectedId}
+              searchQuery={searchQuery}
+              onSearchQueryChange={setSearchQuery}
+              statusFilter={statusFilter}
+              onStatusFilterChange={setStatusFilter}
+              priorityFilter={priorityFilter}
+              onPriorityFilterChange={setPriorityFilter}
             />
           </div>
         </div>
@@ -156,6 +207,8 @@ export default function QAODSPage() {
             <TaskDetail
               task={selectedTask}
               onStatusChange={handleStatusChange}
+              onUpdate={handleUpdateTask}
+              onIterate={handleIterate}
             />
           </div>
           {selectedTask && (

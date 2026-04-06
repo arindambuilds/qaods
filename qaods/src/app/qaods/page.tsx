@@ -1,29 +1,47 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Task, AuditEntry, TaskStatus } from '../../lib/qaods/types'
+import { Task, AuditEntry, TaskPriority, TaskStatus } from '../../lib/qaods/types'
 import { getTasks, createTask, updateTask } from '../../lib/qaods/taskStore'
 import { generatePrompt } from '../../lib/qaods/promptGenerator'
 import { logAction, getAuditLog } from '../../lib/qaods/auditLogger'
+import { MAX_TASK_ITERATIONS } from '../../lib/qaods/executionController'
 import { saveTasks, loadTasks, saveAudit, loadAudit } from '../../lib/qaods/persistence'
 import TaskList from '../../components/qaods/task-list'
-import TaskForm from '../../components/qaods/task-form'
-import TaskDetail from '../../components/qaods/TaskDetail'
+import TaskForm, { TaskFormSubmitData } from '../../components/qaods/task-form'
+import TaskDetail, { TaskIterateHandler, TaskUpdateData } from '../../components/qaods/TaskDetail'
 import PromptPanel from '../../components/qaods/PromptPanel'
 import AuditLogViewer from '../../components/qaods/AuditLogViewer'
 import ExpertButton from '../../components/qaods/ExpertButton'
 
-type TaskInput = Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'iterationCount' | 'status'>
+function defaultFilePathForComponent(component: string): string {
+  const comp = component.trim() || 'Module'
+  const slug = comp.replace(/[^\w.-]/g, '') || 'Module'
+  return `src/components/${slug}.tsx`
+}
+
+function statusAuditLabel(status: TaskStatus): string {
+  return status === 'active' ? 'in-progress' : status
+}
 
 export default function QAODSPage() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([])
   const [showForm, setShowForm] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus>('all')
+  const [priorityFilter, setPriorityFilter] = useState<'all' | TaskPriority>('all')
 
   const selectedTask = tasks.find((t) => t.id === selectedId) ?? null
   const selectedTaskLog = auditLog.filter((e) => e.taskId === selectedId)
   const prompt = selectedTask ? generatePrompt(selectedTask) : null
+  const filteredTasks = tasks.filter((task) => {
+    const matchesTitle = task.title.toLowerCase().includes(searchQuery.trim().toLowerCase())
+    const matchesStatus = statusFilter === 'all' || task.status === statusFilter
+    const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter
+    return matchesTitle && matchesStatus && matchesPriority
+  })
 
   useEffect(() => {
     const savedTasks = loadTasks()
@@ -51,8 +69,17 @@ export default function QAODSPage() {
     saveAudit(auditLog)
   }, [auditLog])
 
-  const handleCreateTask = (data: TaskInput) => {
-    const newTask = createTask({ ...data, status: 'todo' })
+  const handleCreateTask = (data: TaskFormSubmitData) => {
+    const component = data.component.trim() || 'Module'
+    const newTask = createTask({
+      title: data.title.trim(),
+      description: data.description,
+      component,
+      filePath: defaultFilePathForComponent(component),
+      priority: data.priority,
+      tags: data.tags,
+      status: 'todo',
+    })
     setTasks((prev) => [...prev, newTask])
     logAction(newTask.id, 'created', newTask.title)
     setAuditLog([...getAuditLog()])
@@ -66,7 +93,43 @@ export default function QAODSPage() {
 
     if (updated) {
       setTasks([...getTasks()])
-      logAction(id, 'status_change', `${prev?.status ?? ''} → ${status}`)
+      const from = prev ? statusAuditLabel(prev.status) : 'unknown'
+      const to = statusAuditLabel(status)
+      logAction(id, 'status_change', `${from} → ${to}`)
+      setAuditLog([...getAuditLog()])
+    }
+  }
+
+  const handleUpdateTask = (id: string, updatedData: TaskUpdateData) => {
+    const prev = tasks.find((t) => t.id === id)
+    const component = updatedData.component.trim() || 'Module'
+    const updated = updateTask(id, {
+      title: updatedData.title,
+      description: updatedData.description,
+      component,
+      filePath: defaultFilePathForComponent(component),
+      priority: updatedData.priority,
+      tags: updatedData.tags,
+    })
+
+    if (updated) {
+      setTasks([...getTasks()])
+      logAction(id, 'edited', `${prev?.title ?? 'Task'} → ${updated.title}`)
+      setAuditLog([...getAuditLog()])
+    }
+  }
+
+  const handleIterate: TaskIterateHandler = (id) => {
+    const prev = tasks.find((t) => t.id === id)
+    if (!prev || prev.iterationCount >= MAX_TASK_ITERATIONS) return
+    const updated = updateTask(id, { iterationCount: prev.iterationCount + 1 })
+    if (updated) {
+      setTasks([...getTasks()])
+      logAction(
+        id,
+        'iteration',
+        `iteration ${updated.iterationCount} of ${MAX_TASK_ITERATIONS}`
+      )
       setAuditLog([...getAuditLog()])
     }
   }
@@ -93,12 +156,23 @@ export default function QAODSPage() {
         </div>
       </div>
 
-      {/* New task form — shown inline when showForm is true */}
-      {showForm && (
-        <div className="border-b border-gray-900 bg-[#060c18] shrink-0">
-          <TaskForm onSubmit={handleCreateTask} />
+      {/* New task form — slides in below header */}
+      <div
+        className={`grid shrink-0 transition-[grid-template-rows] duration-300 ease-out ${
+          showForm ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+        }`}
+      >
+        <div className="min-h-0 overflow-hidden border-b border-gray-900 bg-[#060c18]">
+          <div
+            className={`max-h-[min(70vh,560px)] overflow-y-auto transition duration-300 ease-out ${
+              showForm ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0 pointer-events-none'
+            }`}
+            aria-hidden={!showForm}
+          >
+            <TaskForm onSubmit={handleCreateTask} />
+          </div>
         </div>
-      )}
+      </div>
 
       {/* Main 3-column layout */}
       <div className="flex flex-1 overflow-hidden">
@@ -106,13 +180,20 @@ export default function QAODSPage() {
         <div className="w-64 shrink-0 border-r border-gray-900 flex flex-col overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-900">
             <span className="text-xs text-gray-600 font-mono tracking-widest">TASKS</span>
-            <span className="ml-2 text-xs text-gray-700">({tasks.length})</span>
+            <span className="ml-2 text-xs text-gray-700">({filteredTasks.length} of {tasks.length})</span>
           </div>
           <div className="flex-1 overflow-y-auto">
             <TaskList
-              tasks={tasks}
+              tasks={filteredTasks}
+              totalCount={tasks.length}
               selectedId={selectedId}
               onSelect={setSelectedId}
+              searchQuery={searchQuery}
+              onSearchQueryChange={setSearchQuery}
+              statusFilter={statusFilter}
+              onStatusFilterChange={setStatusFilter}
+              priorityFilter={priorityFilter}
+              onPriorityFilterChange={setPriorityFilter}
             />
           </div>
         </div>
@@ -126,6 +207,8 @@ export default function QAODSPage() {
             <TaskDetail
               task={selectedTask}
               onStatusChange={handleStatusChange}
+              onUpdate={handleUpdateTask}
+              onIterate={handleIterate}
             />
           </div>
           {selectedTask && (
